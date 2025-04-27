@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.0.2
+# Version: 1.0.3
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -113,7 +113,7 @@ IOPS_JOBS="4"            # Jobs for IOPS test
 LATENCY_JOBS="1"         # Jobs for latency test
 
 # Runtime parameters
-TEST_RUNTIME="30"        # Runtime in seconds for each test
+TEST_RUNTIME="10"        # Runtime in seconds for each test
 
 # Colors for output
 RED='\033[0;31m'
@@ -316,8 +316,9 @@ run_benchmarks() {
     echo -e "${GREEN}Benchmark complete for ${device_name}${NC}"
 }
 
-# Create plots with gnuplot - SIMPLIFIED AND FIXED VERSION
-# Create plots with gnuplot - DYNAMIC VERSION
+# Create plots with gnuplot - DYNAMIC VERSION WITH SINGLE LINE PLOT COMMAND
+# Crear una función generate_plots() actualizada que define los colores con una solución más simple
+
 generate_plots() {
     if [ $GNUPLOT_AVAILABLE -eq 0 ]; then
         echo -e "${YELLOW}Cannot generate graphs, gnuplot is not installed.${NC}"
@@ -398,24 +399,45 @@ set key outside top right
 set style data histograms
 set style histogram clustered gap 1
 
-# Plot devices side by side
-plot \\
 EOF
 
-    # Add each device dynamically to the gnuplot script
-    COLORS=('#4169E1' '#DC143C' '#228B22' '#FF8C00' '#9932CC' '#20B2AA')
+    # Define colors manually - no array
+    COLOR1="#4169E1"  # Royal Blue
+    COLOR2="#DC143C"  # Crimson
+    COLOR3="#228B22"  # Forest Green
+    COLOR4="#FF8C00"  # Dark Orange
+    COLOR5="#9932CC"  # Dark Orchid
+    COLOR6="#20B2AA"  # Light Sea Green
+
+    # Construir una sola línea de comando plot sin usar continuaciones de línea
+    plot_command="plot "
     i=0
     for dev in $DEVICES; do
-        color="${COLORS[$i % 6]}"
+        # Use simple if/else for color selection instead of array
         if [ $i -eq 0 ]; then
-            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)):xtic(1) title '$dev' lc rgb '$color' \\" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
-        elif [ $i -eq $((NUM_DEVICES-1)) ]; then
-            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color'" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
+            color="$COLOR1"
+        elif [ $i -eq 1 ]; then
+            color="$COLOR2"
+        elif [ $i -eq 2 ]; then
+            color="$COLOR3"
+        elif [ $i -eq 3 ]; then
+            color="$COLOR4"
+        elif [ $i -eq 4 ]; then
+            color="$COLOR5"
         else
-            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color', \\" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
+            color="$COLOR6"
+        fi
+
+        if [ $i -eq 0 ]; then
+            plot_command+="'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)):xtic(1) title '$dev' lc rgb '$color'"
+        else
+            plot_command+=", '$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color'"
         fi
         i=$((i+1))
     done
+
+    # Escribir la línea completa del comando plot en el archivo gnuplot
+    echo "$plot_command" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
 
     # IOPS Plot - Modified for dynamic devices
     cat > "$RESULTS_DIR/iops_plot.gnuplot" << EOF
@@ -434,8 +456,7 @@ set datafile separator ','
 # Create a better bar chart
 set style data histogram
 set style histogram cluster gap 1
-plot '$RESULTS_DIR/iops_results.csv' every ::1 using 3:xtic(1) \
-     title 'IOPS' linecolor rgb '#4169E1'
+plot '$RESULTS_DIR/iops_results.csv' every ::1 using 3:xtic(1) title 'IOPS' linecolor rgb '#4169E1'
 EOF
 
     # Latency Plot - Modified for dynamic devices
@@ -455,8 +476,7 @@ set datafile separator ','
 # Create a better bar chart
 set style data histogram
 set style histogram cluster gap 1
-plot '$RESULTS_DIR/latency_results.csv' every ::1 using 3:xtic(1) \
-     title 'Latency' linecolor rgb '#DC143C'
+plot '$RESULTS_DIR/latency_results.csv' every ::1 using 3:xtic(1) title 'Latency' linecolor rgb '#DC143C'
 EOF
 
     # Run gnuplot with error checking
@@ -478,6 +498,9 @@ EOF
         echo -e "${YELLOW}Warning: Some graphs could not be generated or are empty.${NC}"
     fi
 }
+
+
+
 
 
 # Generate final report

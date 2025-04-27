@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.0.1
+# Version: 1.0.2
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux

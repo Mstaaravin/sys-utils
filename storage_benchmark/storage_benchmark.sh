@@ -317,6 +317,7 @@ run_benchmarks() {
 }
 
 # Create plots with gnuplot - SIMPLIFIED AND FIXED VERSION
+# Create plots with gnuplot - DYNAMIC VERSION
 generate_plots() {
     if [ $GNUPLOT_AVAILABLE -eq 0 ]; then
         echo -e "${YELLOW}Cannot generate graphs, gnuplot is not installed.${NC}"
@@ -331,23 +332,56 @@ generate_plots() {
         return
     fi
 
-    # Create a special format file for bandwidth plotting
-    # This makes it much easier for gnuplot to handle
-    awk -F, 'BEGIN {print "TestType EMMC_32GB HDD6TB"} 
-             NR>1 {
-                if($2=="seq_read") seq_read[$1]=$3; 
-                if($2=="seq_write") seq_write[$1]=$3;
-                if($2=="rand_read") rand_read[$1]=$3;
-                if($2=="rand_write") rand_write[$1]=$3;
-             }
-             END {
-                print "seq_read", seq_read["EMMC_32GB"], seq_read["HDD6TB"];
-                print "seq_write", seq_write["EMMC_32GB"], seq_write["HDD6TB"];
-                print "rand_read", rand_read["EMMC_32GB"], rand_read["HDD6TB"];
-                print "rand_write", rand_write["EMMC_32GB"], rand_write["HDD6TB"];
-             }' "$RESULTS_DIR/bandwidth_results.csv" > "$RESULTS_DIR/bandwidth_plot_data.txt"
+    # Get all unique device names
+    DEVICES=$(awk -F, 'NR>1 {print $1}' "$RESULTS_DIR/bandwidth_results.csv" | sort | uniq)
+    NUM_DEVICES=$(echo "$DEVICES" | wc -l)
 
-    # Bandwidth Plot - SIMPLIFIED APPROACH
+    # Create a special format file for bandwidth plotting that handles any number of devices
+    awk -F, '
+        NR==1 {next}  # Skip header
+        {
+            devices[$1]=1;  # Collect all device names
+            if($2=="seq_read") seq_read[$1]=$3; 
+            if($2=="seq_write") seq_write[$1]=$3;
+            if($2=="rand_read") rand_read[$1]=$3;
+            if($2=="rand_write") rand_write[$1]=$3;
+        }
+        END {
+            # Print header with detected device names
+            printf "TestType";
+            for (dev in devices) {
+                printf " %s", dev;
+            }
+            printf "\n";
+
+            # Print values for each test type
+            printf "seq_read";
+            for (dev in devices) {
+                printf " %s", seq_read[dev] ? seq_read[dev] : "0";
+            }
+            printf "\n";
+
+            printf "seq_write";
+            for (dev in devices) {
+                printf " %s", seq_write[dev] ? seq_write[dev] : "0";
+            }
+            printf "\n";
+
+            printf "rand_read";
+            for (dev in devices) {
+                printf " %s", rand_read[dev] ? rand_read[dev] : "0";
+            }
+            printf "\n";
+
+            printf "rand_write";
+            for (dev in devices) {
+                printf " %s", rand_write[dev] ? rand_write[dev] : "0";
+            }
+            printf "\n";
+        }
+    ' "$RESULTS_DIR/bandwidth_results.csv" > "$RESULTS_DIR/bandwidth_plot_data.txt"
+
+    # Create the bandwidth plot script with dynamic device plotting
     cat > "$RESULTS_DIR/bandwidth_plot.gnuplot" << EOF
 set terminal pngcairo size 900,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/bandwidth_comparison.png'
@@ -365,11 +399,25 @@ set style data histograms
 set style histogram clustered gap 1
 
 # Plot devices side by side
-plot '$RESULTS_DIR/bandwidth_plot_data.txt' using 2:xtic(1) title 'EMMC_32GB' lc rgb '#4169E1', \
-     '' using 3 title 'HDD6TB' lc rgb '#DC143C'
+plot \\
 EOF
 
-    # IOPS Plot - SIMPLIFIED
+    # Add each device dynamically to the gnuplot script
+    COLORS=('#4169E1' '#DC143C' '#228B22' '#FF8C00' '#9932CC' '#20B2AA')
+    i=0
+    for dev in $DEVICES; do
+        color="${COLORS[$i % 6]}"
+        if [ $i -eq 0 ]; then
+            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)):xtic(1) title '$dev' lc rgb '$color' \\" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
+        elif [ $i -eq $((NUM_DEVICES-1)) ]; then
+            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color'" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
+        else
+            echo "'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color', \\" >> "$RESULTS_DIR/bandwidth_plot.gnuplot"
+        fi
+        i=$((i+1))
+    done
+
+    # IOPS Plot - Modified for dynamic devices
     cat > "$RESULTS_DIR/iops_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/iops_comparison.png'
@@ -390,7 +438,7 @@ plot '$RESULTS_DIR/iops_results.csv' every ::1 using 3:xtic(1) \
      title 'IOPS' linecolor rgb '#4169E1'
 EOF
 
-    # Latency Plot - SIMPLIFIED
+    # Latency Plot - Modified for dynamic devices
     cat > "$RESULTS_DIR/latency_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/latency_comparison.png'
@@ -431,13 +479,14 @@ EOF
     fi
 }
 
+
 # Generate final report
 generate_report() {
     echo -e "${BLUE}Generating final report...${NC}"
-    
+
     # Create report file
     REPORT_FILE="$RESULTS_DIR/benchmark_report.txt"
-    
+
     {
         echo "==================================================="
         echo "  STORAGE BENCHMARK REPORT"

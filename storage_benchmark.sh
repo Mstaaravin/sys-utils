@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.1.3
+# Version: 1.1.4
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -104,7 +104,7 @@ SEQ_IODEPTH="4"          # I/O depth for sequential tests
 RAND_IODEPTH="32"        # I/O depth for random tests
 IOPS_IODEPTH="64"        # I/O depth for IOPS test
 LATENCY_IODEPTH="1"      # I/O depth for latency test
-USE_DIRECT_IO="1"        # Use direct I/O (1=yes, 0=no)
+USE_DIRECT_IO="0"        # Use direct I/O (1=yes, 0=no)
 
 # Job counts
 SEQ_JOBS="1"             # Jobs for sequential tests
@@ -322,60 +322,34 @@ generate_plots() {
         return
     fi
 
-    # Get all unique device names
-    DEVICES=$(awk -F, 'NR>1 {print $1}' "$RESULTS_DIR/bandwidth_results.csv" | sort | uniq)
+    # Get all unique device names in their ORIGINAL order (not sorted alphabetically)
+    # This preserves the order specified in the command line
+    DEVICES=$(awk -F, 'NR>1 {print $1}' "$RESULTS_DIR/bandwidth_results.csv" | uniq)
     NUM_DEVICES=$(echo "$DEVICES" | wc -l)
 
+    # Print detected devices and their order for verification
+    echo -e "${BLUE}Detected devices in order:${NC}"
+    echo "$DEVICES" | cat -n
+
     # Create a special format file for bandwidth plotting that handles any number of devices
-    awk -F, '
-        NR==1 {next}  # Skip header
-        {
-            devices[$1]=1;  # Collect all device names
-            if($2=="seq_read") seq_read[$1]=$3; 
-            if($2=="seq_write") seq_write[$1]=$3;
-            if($2=="rand_read") rand_read[$1]=$3;
-            if($2=="rand_write") rand_write[$1]=$3;
-        }
-        END {
-            # Print header with detected device names
-            printf "TestType";
-            for (dev in devices) {
-                printf " %s", dev;
-            }
-            printf "\n";
-
-            # Print values for each test type
-            printf "seq_read";
-            for (dev in devices) {
-                printf " %s", seq_read[dev] ? seq_read[dev] : "0";
-            }
-            printf "\n";
-
-            printf "seq_write";
-            for (dev in devices) {
-                printf " %s", seq_write[dev] ? seq_write[dev] : "0";
-            }
-            printf "\n";
-
-            printf "rand_read";
-            for (dev in devices) {
-                printf " %s", rand_read[dev] ? rand_read[dev] : "0";
-            }
-            printf "\n";
-
-            printf "rand_write";
-            for (dev in devices) {
-                printf " %s", rand_write[dev] ? rand_write[dev] : "0";
-            }
-            printf "\n";
-        }
-    ' "$RESULTS_DIR/bandwidth_results.csv" > "$RESULTS_DIR/bandwidth_plot_data.txt"
-
+    # First, let's extract the header row (which contains device names)
+    BANDWIDTH_HEADER=$(head -1 "$RESULTS_DIR/bandwidth_plot_data.txt")
+    
+    # Parse the header to get column numbers for each device
+    declare -A DEVICE_COLUMNS
+    i=1
+    for name in $BANDWIDTH_HEADER; do
+        if [ "$name" != "TestType" ]; then
+            DEVICE_COLUMNS[$name]=$i
+        fi
+        ((i++))
+    done
+    
     # Create the bandwidth plot script with dynamic device plotting
     cat > "$RESULTS_DIR/bandwidth_plot.gnuplot" << EOF
 set terminal pngcairo size 900,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/bandwidth_comparison.png'
-set title 'Bandwidth Comparison (MB/s)\n{/*0.8 Higher is better}'
+set title 'Bandwidth Comparison (MB/s)\n {/*0.8 Higher is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45
@@ -401,28 +375,34 @@ EOF
     # Construir una sola línea de comando plot sin usar continuaciones de línea
     plot_command="plot "
     i=0
-    for dev in $DEVICES; do
-        # Use simple if/else for color selection instead of array
-        if [ $i -eq 0 ]; then
-            color="$COLOR1"
-        elif [ $i -eq 1 ]; then
-            color="$COLOR2"
-        elif [ $i -eq 2 ]; then
-            color="$COLOR3"
-        elif [ $i -eq 3 ]; then
-            color="$COLOR4"
-        elif [ $i -eq 4 ]; then
-            color="$COLOR5"
-        else
-            color="$COLOR6"
-        fi
+    
+    # Iterate through devices in the order they appear in the bandwidth_plot_data.txt header
+    for dev in $BANDWIDTH_HEADER; do
+        if [ "$dev" != "TestType" ]; then
+            # Use simple if/else for color selection instead of array
+            if [ $i -eq 0 ]; then
+                color="$COLOR1"
+            elif [ $i -eq 1 ]; then
+                color="$COLOR2"
+            elif [ $i -eq 2 ]; then
+                color="$COLOR3"
+            elif [ $i -eq 3 ]; then
+                color="$COLOR4"
+            elif [ $i -eq 4 ]; then
+                color="$COLOR5"
+            else
+                color="$COLOR6"
+            fi
 
-        if [ $i -eq 0 ]; then
-            plot_command+="'$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)):xtic(1) title '$dev' lc rgb '$color'"
-        else
-            plot_command+=", '$RESULTS_DIR/bandwidth_plot_data.txt' using $((i+2)) title '$dev' lc rgb '$color'"
+            column=${DEVICE_COLUMNS[$dev]}
+            
+            if [ $i -eq 0 ]; then
+                plot_command+="'$RESULTS_DIR/bandwidth_plot_data.txt' using $column:xtic(1) title '$dev' lc rgb '$color'"
+            else
+                plot_command+=", '$RESULTS_DIR/bandwidth_plot_data.txt' using $column title '$dev' lc rgb '$color'"
+            fi
+            ((i++))
         fi
-        i=$((i+1))
     done
 
     # Escribir la línea completa del comando plot en el archivo gnuplot
@@ -432,7 +412,7 @@ EOF
     cat > "$RESULTS_DIR/iops_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/iops_comparison.png'
-set title 'IOPS Comparison\n{/*0.8 Higher is better}'
+set title 'IOPS Comparison\n {/*0.8 Higher is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45
@@ -452,7 +432,7 @@ EOF
     cat > "$RESULTS_DIR/latency_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/latency_comparison.png'
-set title 'Latency Comparison (ms)\n{/*0.8 Lower is better}'
+set title 'Latency Comparison (ms)\n {/*0.8 Lower is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45

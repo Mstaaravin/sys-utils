@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.1.4
+# Version: 1.1.6
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -332,18 +332,52 @@ generate_plots() {
     echo "$DEVICES" | cat -n
 
     # Create a special format file for bandwidth plotting that handles any number of devices
-    # First, let's extract the header row (which contains device names)
+    awk -F, '
+        NR==1 {next}  # Skip header
+        {
+            devices[$1]=1;  # Collect all device names
+            if($2=="seq_read") seq_read[$1]=$3; 
+            if($2=="seq_write") seq_write[$1]=$3;
+            if($2=="rand_read") rand_read[$1]=$3;
+            if($2=="rand_write") rand_write[$1]=$3;
+        }
+        END {
+            # Print header with detected device names in original order
+            printf "TestType";
+            for (dev in devices) {
+                printf " %s", dev;
+            }
+            printf "\n";
+
+            # Print values for each test type preserving device order
+            printf "seq_read";
+            for (dev in devices) {
+                printf " %s", seq_read[dev] ? seq_read[dev] : "0";
+            }
+            printf "\n";
+
+            printf "seq_write";
+            for (dev in devices) {
+                printf " %s", seq_write[dev] ? seq_write[dev] : "0";
+            }
+            printf "\n";
+
+            printf "rand_read";
+            for (dev in devices) {
+                printf " %s", rand_read[dev] ? rand_read[dev] : "0";
+            }
+            printf "\n";
+
+            printf "rand_write";
+            for (dev in devices) {
+                printf " %s", rand_write[dev] ? rand_write[dev] : "0";
+            }
+            printf "\n";
+        }
+    ' "$RESULTS_DIR/bandwidth_results.csv" > "$RESULTS_DIR/bandwidth_plot_data.txt"
+
+    # First, extract the header row (which contains device names)
     BANDWIDTH_HEADER=$(head -1 "$RESULTS_DIR/bandwidth_plot_data.txt")
-    
-    # Parse the header to get column numbers for each device
-    declare -A DEVICE_COLUMNS
-    i=1
-    for name in $BANDWIDTH_HEADER; do
-        if [ "$name" != "TestType" ]; then
-            DEVICE_COLUMNS[$name]=$i
-        fi
-        ((i++))
-    done
     
     # Create the bandwidth plot script with dynamic device plotting
     cat > "$RESULTS_DIR/bandwidth_plot.gnuplot" << EOF
@@ -394,12 +428,12 @@ EOF
                 color="$COLOR6"
             fi
 
-            column=${DEVICE_COLUMNS[$dev]}
+            column_num=$((i+2))  # AWK columns start at 1, and first data column is column 2
             
             if [ $i -eq 0 ]; then
-                plot_command+="'$RESULTS_DIR/bandwidth_plot_data.txt' using $column:xtic(1) title '$dev' lc rgb '$color'"
+                plot_command+="'$RESULTS_DIR/bandwidth_plot_data.txt' using $column_num:xtic(1) title '$dev' lc rgb '$color'"
             else
-                plot_command+=", '$RESULTS_DIR/bandwidth_plot_data.txt' using $column title '$dev' lc rgb '$color'"
+                plot_command+=", '$RESULTS_DIR/bandwidth_plot_data.txt' using $column_num title '$dev' lc rgb '$color'"
             fi
             ((i++))
         fi

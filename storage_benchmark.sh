@@ -123,6 +123,17 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No color
 
 
+# Get script version from the version line
+get_version() {
+    local version_line=$(grep -m 1 "# Version:" "$0")
+    SCRIPT_VERSION=$(echo "$version_line" | awk '{print $3}')
+    
+    # Default version if not found
+    if [ -z "$SCRIPT_VERSION" ]; then
+        SCRIPT_VERSION="unknown"
+    fi
+}
+
 
 # Check if running as root
 check_root() {
@@ -479,6 +490,7 @@ EOF
 
 
 
+
 # Generate final report
 generate_report() {
     echo -e "${BLUE}Generating final report...${NC}"
@@ -489,7 +501,7 @@ generate_report() {
     {
         echo "==================================================="
         echo "  STORAGE BENCHMARK REPORT"
-        echo "  Generated: $(date)"
+        echo "  Generated: $(date) (v${SCRIPT_VERSION})"
         echo "==================================================="
         echo ""
         echo "TEST PARAMETERS:"
@@ -579,9 +591,15 @@ generate_report() {
     cat "$RESULTS_DIR/latency_results.csv"
 }
 
+
+
+
 # Main function
 main() {
-    echo -e "${GREEN}=== STORAGE BENCHMARK SCRIPT ===${NC}"
+    # Get script version
+    get_version
+    
+    echo -e "${GREEN}=== STORAGE BENCHMARK SCRIPT v${SCRIPT_VERSION} ===${NC}"
 
     # Check if running as root
     check_root "$@"

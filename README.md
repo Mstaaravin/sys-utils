@@ -4,9 +4,6 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 
 <img src="doc/img/bandwidth_comparison.png" alt="Bandwidth Comparison" width="450">
 
-## Version
-1.1.0
-
 ## Table of Contents
 
 - [Features](#features)

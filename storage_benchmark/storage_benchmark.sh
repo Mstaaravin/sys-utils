@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.1.1
+# Version: 1.1.2
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -297,8 +297,6 @@ run_benchmarks() {
 
 
 # Create plots with gnuplot - DYNAMIC VERSION WITH SINGLE LINE PLOT COMMAND
-# Crear una función generate_plots() actualizada que define los colores con una solución más simple
-
 generate_plots() {
     if [ $GNUPLOT_AVAILABLE -eq 0 ]; then
         echo -e "${YELLOW}Cannot generate graphs, gnuplot is not installed.${NC}"
@@ -366,7 +364,7 @@ generate_plots() {
     cat > "$RESULTS_DIR/bandwidth_plot.gnuplot" << EOF
 set terminal pngcairo size 900,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/bandwidth_comparison.png'
-set title 'Bandwidth Comparison (MB/s)'
+set title 'Bandwidth Comparison (MB/s)\n{/*0.8 Higher is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45
@@ -423,7 +421,7 @@ EOF
     cat > "$RESULTS_DIR/iops_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/iops_comparison.png'
-set title 'IOPS Comparison'
+set title 'IOPS Comparison\n{/*0.8 Higher is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45
@@ -443,7 +441,7 @@ EOF
     cat > "$RESULTS_DIR/latency_plot.gnuplot" << EOF
 set terminal pngcairo size 800,600 enhanced font 'Arial,12'
 set output '$RESULTS_DIR/latency_comparison.png'
-set title 'Latency Comparison (ms)'
+set title 'Latency Comparison (ms)\n{/*0.8 Lower is better}'
 set style fill solid 0.7 border
 set boxwidth 0.8
 set xtics rotate by -45

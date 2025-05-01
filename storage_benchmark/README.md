@@ -2,7 +2,10 @@
 
 A thorough performance evaluation toolkit for comparing storage devices in Linux systems. This script allows you to test and compare multiple storage devices by measuring their sequential and random read/write performance, IOPS, and latency.
 
-<img src="doc/img/bandwidth_comparison.png" alt="Bandwidth Comparison" width="450">
+<img src="../doc/img/bandwidth_comparison.png" alt="Bandwidth Comparison" width="450">
+
+## Version
+1.1.0
 
 ## Table of Contents
 
@@ -35,6 +38,7 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 - Generate comparative graphs between devices
 - Create detailed reports in text and CSV formats
 - Configurable test parameters via global variables
+- Configurable direct I/O setting
 
 ## Requirements
 
@@ -105,7 +109,6 @@ The script runs the following tests:
 - **Random Write**: Measures non-sequential small block write performance
 - **IOPS Test**: Measures maximum input/output operations per second
 - **Latency Test**: Measures time delay between request and response
-- **DD Tests**: Basic read/write tests using native Linux tools
 
 ## Output Examples
 
@@ -140,7 +143,6 @@ The script creates a timestamped directory (`benchmark_results_YYYYMMDD_HHMMSS`)
 | `*_test.json` | Detailed FIO test results in JSON format |
 | `benchmark_report.txt` | Comprehensive text report with test parameters and results |
 | `*_plot.gnuplot` | GnuPlot scripts used to generate graphs |
-| `dd_results.txt` | Results from DD read/write tests |
 
 ## Configuration
 
@@ -151,18 +153,17 @@ You can customize the benchmark parameters by modifying the global variables at 
 SEQ_TEST_SIZE="1g"       # Size for sequential tests
 RAND_TEST_SIZE="1g"      # Size for random tests
 LATENCY_TEST_SIZE="256m" # Size for latency test
-DD_TEST_SIZE="1000"      # Count for DD test (in MB blocks)
 
 # Block sizes
 SEQ_BLOCK_SIZE="1m"      # Block size for sequential tests
 RAND_BLOCK_SIZE="4k"     # Block size for random tests 
-DD_BLOCK_SIZE="1M"       # Block size for DD tests
 
 # I/O configuration
 SEQ_IODEPTH="4"          # I/O depth for sequential tests
 RAND_IODEPTH="32"        # I/O depth for random tests
 IOPS_IODEPTH="64"        # I/O depth for IOPS test
 LATENCY_IODEPTH="1"      # I/O depth for latency test
+USE_DIRECT_IO="1"        # Use direct I/O (1=yes, 0=no)
 
 # Job counts
 SEQ_JOBS="1"             # Jobs for sequential tests
@@ -192,7 +193,6 @@ benchmark_results_20250426_153927/
 ├── bandwidth_plot.gnuplot      # Gnuplot script for bandwidth graph
 ├── bandwidth_results.csv       # Raw bandwidth results
 ├── benchmark_report.txt        # Comprehensive report of all results
-├── dd_results.txt              # Results from dd command tests
 ├── EMMC_32GB_iops_test.json    # IOPS test details for EMMC_32GB
 ├── EMMC_32GB_latency_test.json # Latency test details for EMMC_32GB
 ├── EMMC_32GB_rand_read.json    # Random read test details for EMMC_32GB

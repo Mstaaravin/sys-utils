@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.0.3
+# Version: 1.1.1
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -42,6 +42,7 @@
 #   - SEQ_BLOCK_SIZE: Block size for sequential operations
 #   - RAND_BLOCK_SIZE: Block size for random operations
 #   - TEST_RUNTIME: Duration of each test in seconds
+#   - USE_DIRECT_IO: Whether to use direct I/O (1) or cached I/O (0)
 #   - And more (see Global configuration parameters section)
 #
 # USAGE:
@@ -93,18 +94,17 @@
 SEQ_TEST_SIZE="4g"       # Size for sequential tests
 RAND_TEST_SIZE="2g"      # Size for random tests
 LATENCY_TEST_SIZE="256m" # Size for latency test
-DD_TEST_SIZE="1000"      # Count for DD test (in MB blocks)
 
 # Block sizes
 SEQ_BLOCK_SIZE="1m"      # Block size for sequential tests
 RAND_BLOCK_SIZE="4k"     # Block size for random tests
-DD_BLOCK_SIZE="1M"       # Block size for DD tests
 
 # I/O configuration
 SEQ_IODEPTH="4"          # I/O depth for sequential tests
 RAND_IODEPTH="32"        # I/O depth for random tests
 IOPS_IODEPTH="64"        # I/O depth for IOPS test
 LATENCY_IODEPTH="1"      # I/O depth for latency test
+USE_DIRECT_IO="1"        # Use direct I/O (1=yes, 0=no)
 
 # Job counts
 SEQ_JOBS="1"             # Jobs for sequential tests
@@ -122,12 +122,7 @@ BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No color
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No color
+
 
 # Check if running as root
 check_root() {
@@ -172,7 +167,7 @@ show_configuration() {
     echo -e "Random tests: ${RAND_BLOCK_SIZE} blocks, ${RAND_TEST_SIZE} total, ${RAND_IODEPTH} IO depth, ${RAND_JOBS} jobs"
     echo -e "IOPS test: ${RAND_BLOCK_SIZE} blocks, ${RAND_TEST_SIZE} total, ${IOPS_IODEPTH} IO depth, ${IOPS_JOBS} jobs"
     echo -e "Latency test: ${RAND_BLOCK_SIZE} blocks, ${LATENCY_TEST_SIZE} total, ${LATENCY_IODEPTH} IO depth, ${LATENCY_JOBS} jobs"
-    echo -e "DD test: ${DD_BLOCK_SIZE} blocks, ${DD_TEST_SIZE} count"
+    echo -e "Direct I/O: $([ "$USE_DIRECT_IO" = "1" ] && echo "Enabled" || echo "Disabled")"
     echo -e "Runtime per test: ${TEST_RUNTIME} seconds"
     echo
 }
@@ -181,6 +176,7 @@ show_configuration() {
 run_fio_test() {
     local device_path=$1
     local test_name=$2
+    local device_name=$3
     local test_file="${device_path}/benchmark_test_${test_name}.tmp"
     local result_file="$RESULTS_DIR/${device_name}_${test_name}.json"
 
@@ -190,7 +186,7 @@ run_fio_test() {
     cat > "/tmp/fio_job_${test_name}.ini" << EOF
 [global]
 ioengine=libaio
-direct=1
+direct=${USE_DIRECT_IO}
 time_based=1
 runtime=${TEST_RUNTIME}
 group_reporting=1
@@ -274,6 +270,7 @@ EOF
     rm -f "$test_file"
 }
 
+
 # Run benchmarks for a device
 run_benchmarks() {
     local device_path=$1
@@ -285,36 +282,19 @@ run_benchmarks() {
     mkdir -p "${device_path}/benchmark_test"
 
     # Run FIO tests
-    run_fio_test "$device_path" "seq_read"
-    run_fio_test "$device_path" "seq_write"
-    run_fio_test "$device_path" "rand_read"
-    run_fio_test "$device_path" "rand_write"
-    run_fio_test "$device_path" "iops_test"
-    run_fio_test "$device_path" "latency_test"
+    run_fio_test "$device_path" "seq_read" "$device_name"
+    run_fio_test "$device_path" "seq_write" "$device_name"
+    run_fio_test "$device_path" "rand_read" "$device_name"
+    run_fio_test "$device_path" "rand_write" "$device_name"
+    run_fio_test "$device_path" "iops_test" "$device_name"
+    run_fio_test "$device_path" "latency_test" "$device_name"
 
-    # Also run simple test with dd
-    echo -e "${BLUE}Running dd test on ${device_path}${NC}"
-
-# Write test with dd
-    echo -e "${YELLOW}DD write test${NC}"
-    dd if=/dev/zero of="${device_path}/benchmark_test/dd_test_file" bs=${DD_BLOCK_SIZE} count=${DD_TEST_SIZE} conv=fdatasync 2>&1 | tee -a "$RESULTS_DIR/dd_results.txt"
-
-    # Read test with dd
-    echo -e "${YELLOW}DD read test${NC}"
-    # Clear cache for fair test (requires root)
-    if [ $RUNNING_AS_ROOT -eq 1 ]; then
-        echo 3 > /proc/sys/vm/drop_caches
-    else
-        echo -e "${YELLOW}Warning: Cannot clear cache without root privileges. DD read test may show cached speeds.${NC}" | tee -a "$RESULTS_DIR/dd_results.txt"
-    fi
-
-    dd if="${device_path}/benchmark_test/dd_test_file" of=/dev/null bs=${DD_BLOCK_SIZE} count=${DD_TEST_SIZE} 2>&1 | tee -a "$RESULTS_DIR/dd_results.txt"
     # Clean up
-    rm -f "${device_path}/benchmark_test/dd_test_file"
     rmdir "${device_path}/benchmark_test"
 
     echo -e "${GREEN}Benchmark complete for ${device_name}${NC}"
 }
+
 
 # Create plots with gnuplot - DYNAMIC VERSION WITH SINGLE LINE PLOT COMMAND
 # Crear una función generate_plots() actualizada que define los colores con una solución más simple
@@ -501,8 +481,6 @@ EOF
 
 
 
-
-
 # Generate final report
 generate_report() {
     echo -e "${BLUE}Generating final report...${NC}"
@@ -518,6 +496,8 @@ generate_report() {
         echo ""
         echo "TEST PARAMETERS:"
         echo "----------------------------------"
+        echo "Direct I/O: $([ "$USE_DIRECT_IO" = "1" ] && echo "Enabled" || echo "Disabled")"
+        echo ""
         echo "Sequential Read:"
         echo "  - Block Size: ${SEQ_BLOCK_SIZE}"
         echo "  - Test Size: ${SEQ_TEST_SIZE}"
@@ -560,12 +540,6 @@ generate_report() {
         echo "  - Jobs: ${LATENCY_JOBS}"
         echo "  Description: Measures time delay between request and response."
         echo ""
-        echo "DD Tests:"
-        echo "  - Block Size: ${DD_BLOCK_SIZE}"
-        echo "  - Count: ${DD_TEST_SIZE}"
-        echo "  - Options: fdatasync"
-        echo "  Description: Basic read/write tests using native Linux tools."
-        echo ""
         echo "BANDWIDTH RESULTS (MB/s):"
         echo "----------------------------------"
         echo "Device, Test, MB/s"
@@ -581,10 +555,6 @@ generate_report() {
         echo "Device, Test, Latency (ms)"
         cat "$RESULTS_DIR/latency_results.csv"
         echo ""
-        echo "DD RESULTS:"
-        echo "--------------"
-        cat "$RESULTS_DIR/dd_results.txt"
-        echo ""
         echo "TERMINOLOGY:"
         echo "---------------------------------------------------"
         echo "Block Size: Size of data chunks read/written in each operation"
@@ -596,6 +566,7 @@ generate_report() {
         echo "Random: Operations performed on scattered locations"
         echo "MB/s: Megabytes per second (1 MB = 1,048,576 bytes)"
         echo "ms: Milliseconds (1/1000th of a second)"
+        echo "Direct I/O: Bypasses OS page cache (=1) or uses cache (=0)"
     } > "$REPORT_FILE"
 
     echo -e "${GREEN}Report generated: ${REPORT_FILE}${NC}"
@@ -640,7 +611,6 @@ main() {
     echo "Device,Test,Value" > "$RESULTS_DIR/bandwidth_results.csv"
     echo "Device,Test,Value" > "$RESULTS_DIR/iops_results.csv"
     echo "Device,Test,Value" > "$RESULTS_DIR/latency_results.csv"
-    touch "$RESULTS_DIR/dd_results.txt"
 
     # Save original arguments
     ALL_ARGS=("$@")
@@ -677,6 +647,7 @@ main() {
 
     echo -e "\n${GREEN}All benchmarks completed. Results in ${RESULTS_DIR}${NC}"
 }
+
 
 # Run main function with all arguments
 main "$@"

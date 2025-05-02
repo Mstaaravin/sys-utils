@@ -12,6 +12,7 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 - [Usage](#usage)
   - [Parameters](#parameters)
   - [Examples](#examples)
+- [Error Handling](#error-handling)
 - [Benchmark Tests](#benchmark-tests)
 - [Output Examples](#output-examples)
   - [Bandwidth Comparison](#bandwidth-comparison)
@@ -63,6 +64,34 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 ```bash
 sudo ./storage_benchmark.sh DEVICE_NAME MOUNT_PATH [DEVICE_NAME2 MOUNT_PATH2 ...]
 ```
+
+## Error Handling
+
+The script includes robust error handling for common issues:
+
+- **Invalid Paths**: If a specified mount path doesn't exist, the script will display a clear warning and exclude that device from benchmarks
+- **Permission Issues**: Alerts when the script lacks write permissions on a specified path
+- **Device Status Reporting**: The benchmark report includes a dedicated section showing which devices were successfully benchmarked and which encountered errors
+- **Recommendations**: When devices fail to benchmark, the report provides troubleshooting recommendations
+- **Summary Feedback**: After completion, the script shows a count of any devices that couldn't be benchmarked
+
+Example of error feedback:
+```
+Error: Path /nonexistent/path does not exist or is not accessible
+WARNING: Device SSD_NVME will be excluded from benchmark results
+```
+
+The final report includes a status section for all devices:
+```
+DEVICE STATUS:
+----------------------------------
+EMMC_32GB (/mnt/emmc): Successfully benchmarked
+HDD6TB (/mnt/hdd): Successfully benchmarked
+SSD_NVME (/nonexistent/path): ERROR - Path does not exist or is not accessible
+```
+
+This helps identify configuration issues and ensures reliable benchmark results across multiple devices.
+
 
 ### Parameters
 

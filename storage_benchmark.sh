@@ -3,7 +3,7 @@
 # Copyright (c) 2025. All rights reserved.
 #
 # Name: storage_benchmark.sh
-# Version: 1.1.6
+# Version: 1.1.7
 # Author: Mstaaravin
 # Contributors: Developed with assistance from Claude AI
 # Description: Comprehensive storage device benchmark tool for Linux
@@ -181,6 +181,13 @@ show_configuration() {
     echo -e "Direct I/O: $([ "$USE_DIRECT_IO" = "1" ] && echo "Enabled" || echo "Disabled")"
     echo -e "Runtime per test: ${TEST_RUNTIME} seconds"
     echo
+    
+    # Now show the root warning if running without privileges (after the configuration)
+    if [ "$RUNNING_AS_ROOT" -eq 0 ]; then
+        echo -e "${RED}This script must be run as root for accurate benchmarks!${NC}"
+        echo -e "${YELLOW}Running without root privileges will cause some tests to fail.${NC}"
+        echo
+    fi
 }
 
 # Function to run a benchmark with fio
@@ -508,6 +515,9 @@ EOF
 # Generate final report
 generate_report() {
     echo -e "${BLUE}Generating final report...${NC}"
+    
+    # Get error messages
+    local error_messages=("$@")
 
     # Create report file
     REPORT_FILE="$RESULTS_DIR/benchmark_report.txt"
@@ -518,6 +528,40 @@ generate_report() {
         echo "  Generated: $(date) (v${SCRIPT_VERSION})"
         echo "==================================================="
         echo ""
+        
+        # Add device status section
+        if [ ${#error_messages[@]} -gt 0 ]; then
+            echo "DEVICE STATUS:"
+            echo "----------------------------------"
+            
+            # First, list successfully benchmarked devices
+            for ((i=0; i<NUM_ARGS; i+=2)); do
+                if [ $((i+1)) -lt $NUM_ARGS ]; then
+                    device_name=${ALL_ARGS[i]}
+                    device_path=${ALL_ARGS[i+1]}
+                    
+                    # Check if this device is in the error list
+                    device_has_error=0
+                    for err_device in "${DEVICES_WITH_ERRORS[@]}"; do
+                        if [ "$err_device" = "$device_name" ]; then
+                            device_has_error=1
+                            break
+                        fi
+                    done
+                    
+                    if [ $device_has_error -eq 0 ]; then
+                        echo "$device_name ($device_path): Successfully benchmarked"
+                    fi
+                fi
+            done
+            
+            # Then list devices with errors
+            for error_msg in "${error_messages[@]}"; do
+                echo "$error_msg"
+            done
+            echo ""
+        fi
+        
         echo "TEST PARAMETERS:"
         echo "----------------------------------"
         echo "Direct I/O: $([ "$USE_DIRECT_IO" = "1" ] && echo "Enabled" || echo "Disabled")"
@@ -579,6 +623,19 @@ generate_report() {
         echo "Device, Test, Latency (ms)"
         cat "$RESULTS_DIR/latency_results.csv"
         echo ""
+        
+        # Add recommendations if there were errors
+        if [ ${#error_messages[@]} -gt 0 ]; then
+            echo "RECOMMENDATIONS:"
+            echo "---------------------------------------------------"
+            echo "* For devices that could not be benchmarked, please verify:"
+            echo "  - The device is properly mounted"
+            echo "  - The specified path exists"
+            echo "  - You have proper permissions to access the path"
+            echo "  - The filesystem is properly formatted and accessible"
+            echo ""
+        fi
+        
         echo "TERMINOLOGY:"
         echo "---------------------------------------------------"
         echo "Block Size: Size of data chunks read/written in each operation"
@@ -645,22 +702,37 @@ main() {
     # Save original arguments
     ALL_ARGS=("$@")
     NUM_ARGS=$#
+    
+    # Initialize variables for tracking errors
+    DEVICES_WITH_ERRORS=()
+    ERROR_MESSAGES=()
+    TOTAL_DEVICES=0
+    FAILED_DEVICES=0
 
     # Process each pair of arguments (name and path)
     for ((i=0; i<NUM_ARGS; i+=2)); do
         if [ $((i+1)) -lt $NUM_ARGS ]; then
             device_name=${ALL_ARGS[i]}
             device_path=${ALL_ARGS[i+1]}
+            ((TOTAL_DEVICES++))
 
             # Check if path exists
             if [ ! -d "$device_path" ]; then
                 echo -e "${RED}Error: Path $device_path does not exist or is not accessible${NC}"
+                echo -e "${YELLOW}WARNING: Device $device_name will be excluded from benchmark results${NC}"
+                DEVICES_WITH_ERRORS+=("$device_name")
+                ERROR_MESSAGES+=("$device_name ($device_path): ERROR - Path does not exist or is not accessible")
+                ((FAILED_DEVICES++))
                 continue
             fi
 
             # Check write permissions
             if [ ! -w "$device_path" ]; then
                 echo -e "${RED}Error: You don't have write permissions on $device_path${NC}"
+                echo -e "${YELLOW}WARNING: Device $device_name will be excluded from benchmark results${NC}"
+                DEVICES_WITH_ERRORS+=("$device_name")
+                ERROR_MESSAGES+=("$device_name ($device_path): ERROR - No write permissions on path")
+                ((FAILED_DEVICES++))
                 continue
             fi
 
@@ -673,9 +745,14 @@ main() {
     generate_plots
 
     # Generate report
-    generate_report
+    generate_report "${ERROR_MESSAGES[@]}"
 
     echo -e "\n${GREEN}All benchmarks completed. Results in ${RESULTS_DIR}${NC}"
+    
+    # Show summary of failed devices
+    if [ $FAILED_DEVICES -gt 0 ]; then
+        echo -e "${YELLOW}Note: $FAILED_DEVICES device(s) could not be benchmarked. Check the final report for details.${NC}"
+    fi
 }
 
 

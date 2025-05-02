@@ -1,8 +1,16 @@
 # Linux Storage Benchmark Tool
 
-A thorough performance evaluation toolkit for comparing storage devices in Linux systems. This script allows you to test and compare multiple storage devices by measuring their sequential and random read/write performance, IOPS, and latency.
+This repository contains two complementary scripts for benchmarking and comparing storage device performance:
+
+1. **storage_benchmark.sh**: The main script that runs comprehensive performance tests on one or multiple storage devices, generating detailed metrics and visualizations for each device.
+
+2. **compare_benchmarks.sh**: A companion tool that allows you to compare results from multiple previous benchmark runs, creating side-by-side visualizations of different devices across various test sessions.
+
+Together, these tools provide a complete workflow for testing, analyzing, and comparing storage performance in Linux systems.
+
 
 <img src="doc/img/bandwidth_comparison.png" alt="Bandwidth Comparison" width="450">
+
 
 ## Table of Contents
 
@@ -10,9 +18,8 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Parameters](#parameters)
-  - [Examples](#examples)
-- [Error Handling](#error-handling)
+  - [Running Benchmarks](#running-benchmarks)
+  - [Comparing Benchmark Results](#comparing-benchmark-results)
 - [Benchmark Tests](#benchmark-tests)
 - [Output Examples](#output-examples)
   - [Bandwidth Comparison](#bandwidth-comparison)
@@ -25,6 +32,7 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 - [Interpreting Results](#interpreting-results)
 - [License](#license)
 - [Author](#author)
+
 
 ## Features
 
@@ -61,9 +69,77 @@ A thorough performance evaluation toolkit for comparing storage devices in Linux
 
 ## Usage
 
+### Running Benchmarks
+
 ```bash
 sudo ./storage_benchmark.sh DEVICE_NAME MOUNT_PATH [DEVICE_NAME2 MOUNT_PATH2 ...]
 ```
+
+#### Parameters
+
+- `DEVICE_NAME`: Logical name or identifier for the device. This name will be used in all graphs, reports, and output files. Choose a name that helps you identify the device (e.g., EMMC_32GB, SSD_1TB, HDD6TB).
+- `MOUNT_PATH`: Path to the mount point of the device to test. This is where the benchmark files will be written.
+
+**Important**: The `DEVICE_NAME` is not directly related to the actual device name in your system. It's a label you choose to identify the device in reports and graphs.
+
+#### Examples
+
+The graphs in this README were generated using the following command:
+
+```bash
+sudo ./storage_benchmark.sh EMMC32GB /home/cmiranda/benchmark/ HDD6TB /archive/benchmark/
+```
+
+Where:
+- `EMMC_32GB` is the label for a device mounted at `/home/cmiranda/benchmark/` 
+- `HDD6TB` is the label for a ZFS dataset mounted at `/archive/benchmark/` (from the ZFS pool `V8HPP56R/archive`)
+
+You can run similar comparisons with:
+
+```bash
+# Benchmark a single eMMC device
+sudo ./storage_benchmark.sh EMMC_32GB /path/to/emmc_mount
+
+# Compare an SSD with an HDD
+sudo ./storage_benchmark.sh SSD_NVME /mnt/nvme HDD_SATA /mnt/hdd
+
+# Compare three different storage devices
+sudo ./storage_benchmark.sh EMMC_32GB /mnt/emmc SSD_NVME /mnt/nvme HDD6TB /data
+```
+
+### Comparing Benchmark Results
+
+After running benchmarks multiple times with different devices or configurations, you can use the compare_benchmarks.sh script to generate side-by-side comparisons:
+
+```bash
+./compare_benchmarks.sh [options] DIRECTORY1 DIRECTORY2 [DIRECTORY3 ...]
+```
+
+#### Options
+
+- `-h, --help`: Display usage information
+- `-o, --output DIR`: Set output directory (default: ./comparison_results)
+- `-d, --devices DEV1,DEV2`: Specify device order (comma separated list)
+- `-s, --sort [alpha|param]`: Sort devices alphabetically or by parameter order
+- `-n, --names NAME1,NAME2`: Custom display names for devices (comma separated list)
+
+#### Examples
+
+```bash
+# Compare two benchmark result directories
+./compare_benchmarks.sh benchmark_results_20250502_153056 benchmark_results_20250502_154553
+
+# Compare with custom output directory
+./compare_benchmarks.sh -o my_comparison benchmark_results_1 benchmark_results_2
+
+# Compare with custom device order and names
+./compare_benchmarks.sh -d "SSD,HDD,USB" -n "SSD Drive,HDD Drive,USB Stick" dir1 dir2 dir3
+```
+
+This will generate three comparison graphs:
+- bandwidth_comparison.png: Shows read/write speeds for all devices
+- iops_comparison.png: Compares IOPS performance across devices
+- latency_comparison.png: Compares access latency (lower is better)
 
 ## Error Handling
 
